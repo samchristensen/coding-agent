@@ -56,7 +56,7 @@ if [[ -n "${REPO:-}" ]]; then
   # Checkout a specific branch if requested
   if [[ -n "${BRANCH:-}" ]]; then
     echo "[cody] Checking out branch: ${BRANCH}"
-    git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" "origin/${BRANCH}"
+    git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH"
   fi
 else
   cd "$WORKSPACE"
