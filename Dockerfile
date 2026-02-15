@@ -1,19 +1,34 @@
 # =============================================================================
 # Cody — Agentic coding Docker image
 # =============================================================================
-# Usage:
-#   docker run -it --rm \
-#     -v $(pwd):/workspace \
+#
+# Run against a repo with a task:
+#   docker run --rm \
+#     -v /var/run/docker.sock:/var/run/docker.sock \
+#     -e REPO="owner/repo" \
+#     -e TASK="Fix the failing tests and open a PR" \
+#     -e BRANCH="feature-branch" \
 #     -e ANTHROPIC_API_KEY \
 #     -e OPENAI_API_KEY \
 #     -e GH_TOKEN="$(gh auth token)" \
 #     ghcr.io/samchristensen/cody:latest
+#
+# With custom OpenCode config:
+#   -e OPENCODE_CONFIG_CONTENT='{"model":"anthropic/claude-sonnet-4-6","permission":"allow"}'
+#
+# Interactive shell:
+#   docker run -it --rm \
+#     -v /var/run/docker.sock:/var/run/docker.sock \
+#     -v $(pwd):/workspace \
+#     -e ANTHROPIC_API_KEY -e OPENAI_API_KEY -e GH_TOKEN \
+#     ghcr.io/samchristensen/cody:latest
+#
 # =============================================================================
 
 FROM ubuntu:24.04
 
 LABEL org.opencontainers.image.source="https://github.com/samchristensen/coding-agent"
-LABEL org.opencontainers.image.description="Cody — agentic coding image with OpenCode, gh, and utilities"
+LABEL org.opencontainers.image.description="Cody — agentic coding image with OpenCode, gh, Docker, and utilities"
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -74,29 +89,50 @@ RUN mkdir -p -m 755 /etc/apt/keyrings \
     && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------------------------------
-# 5. Node.js 22.x (required by OpenCode)
+# 5. Docker CLI + Docker Compose plugin
+#    (uses the host Docker daemon via mounted /var/run/docker.sock)
+# ---------------------------------------------------------------------------
+RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+       -o /etc/apt/keyrings/docker.asc \
+    && chmod a+r /etc/apt/keyrings/docker.asc \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+       > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+       docker-ce-cli \
+       docker-compose-plugin \
+    && rm -rf /var/lib/apt/lists/*
+
+# ---------------------------------------------------------------------------
+# 6. Node.js 22.x (required by OpenCode)
 # ---------------------------------------------------------------------------
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------------------------------
-# 6. OpenCode — the AI coding agent
+# 7. OpenCode — the AI coding agent
 # ---------------------------------------------------------------------------
 RUN npm install -g opencode-ai@latest
 
 # ---------------------------------------------------------------------------
-# 7. Git defaults for the container
+# 8. Git defaults for the container
 # ---------------------------------------------------------------------------
 RUN git config --global user.name "Cody" \
     && git config --global user.email "cody@agent" \
     && git config --global init.defaultBranch main
 
 # ---------------------------------------------------------------------------
-# 8. OpenCode global config
-#    - model:      anthropic/claude-sonnet-4-6
-#    - permission: allow (auto-approve all tools — no interactive prompts)
-#    - autoupdate: false (pinned version in image, no surprise updates)
+# 9. OpenCode global config (baseline defaults)
+#
+#    These are the fallback defaults. They can be overridden at runtime via:
+#      -e OPENCODE_CONFIG_CONTENT='{"model":"openai/gpt-4o","permission":"allow"}'
+#    or by placing an opencode.json in the cloned repo.
+#
+#    Precedence (highest wins):
+#      1. Repo-local opencode.json (in the cloned project)
+#      2. OPENCODE_CONFIG_CONTENT env var (runtime override)
+#      3. Global config below (baked into image)
 # ---------------------------------------------------------------------------
 RUN mkdir -p /root/.config/opencode \
     && cat <<'EOF' > /root/.config/opencode/opencode.json
@@ -109,11 +145,15 @@ RUN mkdir -p /root/.config/opencode \
 EOF
 
 # ---------------------------------------------------------------------------
-# 9. Workspace — default mount point for repos
+# 10. Entrypoint script
+# ---------------------------------------------------------------------------
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# ---------------------------------------------------------------------------
+# 11. Workspace — default mount point for repos
 # ---------------------------------------------------------------------------
 WORKDIR /workspace
 
-# ---------------------------------------------------------------------------
-# Default entrypoint: drop into bash so you can run opencode, gh, etc.
-# ---------------------------------------------------------------------------
-CMD ["bash"]
+ENTRYPOINT ["entrypoint.sh"]
+CMD []
