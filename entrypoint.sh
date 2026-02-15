@@ -12,7 +12,6 @@ set -euo pipefail
 #   GH_TOKEN               - GitHub token for auth (cloning private repos + gh CLI)
 #   ANTHROPIC_API_KEY      - Anthropic API key (used by OpenCode)
 #   OPENAI_API_KEY         - OpenAI API key (used by OpenCode)
-#   OPENCODE_CONFIG_CONTENT - Inline JSON to override OpenCode config (optional)
 #
 # If REPO is set, clones into /workspace/<repo-name>.
 # If TASK is set, runs `opencode run "<task>"` in the repo directory.

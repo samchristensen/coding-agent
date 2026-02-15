@@ -13,8 +13,6 @@
 #     -e GH_TOKEN="$(gh auth token)" \
 #     ghcr.io/samchristensen/cody:latest
 #
-# With custom OpenCode config:
-#   -e OPENCODE_CONFIG_CONTENT='{"model":"anthropic/claude-sonnet-4-6","permission":"allow"}'
 #
 # Interactive shell:
 #   docker run -it --rm \
@@ -123,22 +121,15 @@ RUN git config --global user.name "Cody" \
     && git config --global init.defaultBranch main
 
 # ---------------------------------------------------------------------------
-# 9. OpenCode global config (baseline defaults)
+# 9. OpenCode global config (minimal defaults)
 #
-#    These are the fallback defaults. They can be overridden at runtime via:
-#      -e OPENCODE_CONFIG_CONTENT='{"model":"openai/gpt-4o","permission":"allow"}'
-#    or by placing an opencode.json in the cloned repo.
-#
-#    Precedence (highest wins):
-#      1. Repo-local opencode.json (in the cloned project)
-#      2. OPENCODE_CONFIG_CONTENT env var (runtime override)
-#      3. Global config below (baked into image)
+#    Model selection is left to the repo-local opencode.json.
+#    Only non-model defaults (permission, autoupdate) are set here.
 # ---------------------------------------------------------------------------
 RUN mkdir -p /root/.config/opencode \
     && cat <<'EOF' > /root/.config/opencode/opencode.json
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "anthropic/claude-sonnet-4-6",
   "permission": "allow",
   "autoupdate": false
 }
