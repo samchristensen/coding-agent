@@ -64,6 +64,7 @@ jobs:
         id: issue
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TASK_INSTRUCTIONS: ${{ inputs.task_instructions }}
         run: |
           ISSUE_URL="${{ inputs.issue_url }}"
           ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -oP '\d+$')
@@ -92,10 +93,8 @@ jobs:
           PROMPT
 
           # Append repo-specific instructions if provided
-          EXTRA="${{ inputs.task_instructions }}"
-          if [[ -n "$EXTRA" ]]; then
-            echo "" >> /tmp/task.txt
-            echo "$EXTRA" >> /tmp/task.txt
+          if [[ -n "$TASK_INSTRUCTIONS" ]]; then
+            printf '\n%s\n' "$TASK_INSTRUCTIONS" >> /tmp/task.txt
           fi
 
           # Always end with PR instructions
