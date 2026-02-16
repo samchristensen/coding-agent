@@ -57,7 +57,14 @@ RUN ln -sf /usr/bin/fdfind /usr/local/bin/fd \
     && ln -sf /usr/bin/batcat /usr/local/bin/bat
 
 # ---------------------------------------------------------------------------
-# 2. yq — YAML processor (static binary)
+# 2. just — command runner
+# ---------------------------------------------------------------------------
+ARG JUST_VERSION=1.40.0
+RUN curl -fsSL "https://github.com/casey/just/releases/download/${JUST_VERSION}/just-${JUST_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+    | tar xz -C /usr/local/bin just
+
+# ---------------------------------------------------------------------------
+# 3. yq — YAML processor (static binary)
 # ---------------------------------------------------------------------------
 ARG YQ_VERSION=v4.52.4
 RUN curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" \
@@ -65,7 +72,7 @@ RUN curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/
     && chmod +x /usr/local/bin/yq
 
 # ---------------------------------------------------------------------------
-# 3. git-delta — better diffs with syntax highlighting
+# 4. git-delta — better diffs with syntax highlighting
 # ---------------------------------------------------------------------------
 ARG DELTA_VERSION=0.18.2
 RUN curl -fsSL "https://github.com/dandavison/delta/releases/download/${DELTA_VERSION}/git-delta_${DELTA_VERSION}_amd64.deb" \
@@ -74,7 +81,7 @@ RUN curl -fsSL "https://github.com/dandavison/delta/releases/download/${DELTA_VE
     && rm /tmp/delta.deb
 
 # ---------------------------------------------------------------------------
-# 4. GitHub CLI (gh)
+# 5. GitHub CLI (gh)
 # ---------------------------------------------------------------------------
 RUN mkdir -p -m 755 /etc/apt/keyrings \
     && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
@@ -87,7 +94,7 @@ RUN mkdir -p -m 755 /etc/apt/keyrings \
     && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------------------------------
-# 5. Docker CLI + Docker Compose plugin
+# 6. Docker CLI + Docker Compose plugin
 #    (uses the host Docker daemon via mounted /var/run/docker.sock)
 # ---------------------------------------------------------------------------
 RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
@@ -102,26 +109,26 @@ RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
     && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------------------------------
-# 6. Node.js 22.x (required by OpenCode)
+# 7. Node.js 22.x (required by OpenCode)
 # ---------------------------------------------------------------------------
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------------------------------
-# 7. OpenCode — the AI coding agent
+# 8. OpenCode — the AI coding agent
 # ---------------------------------------------------------------------------
 RUN npm install -g opencode-ai@latest
 
 # ---------------------------------------------------------------------------
-# 8. Git defaults for the container
+# 9. Git defaults for the container
 # ---------------------------------------------------------------------------
 RUN git config --global user.name "Cody" \
     && git config --global user.email "cody@agent" \
     && git config --global init.defaultBranch main
 
 # ---------------------------------------------------------------------------
-# 9. OpenCode global config (minimal defaults)
+# 10. OpenCode global config (minimal defaults)
 #
 #    Model selection is left to the repo-local opencode.json.
 #    Only non-model defaults (permission, autoupdate) are set here.
@@ -136,13 +143,13 @@ RUN mkdir -p /root/.config/opencode \
 EOF
 
 # ---------------------------------------------------------------------------
-# 10. Entrypoint script
+# 11. Entrypoint script
 # ---------------------------------------------------------------------------
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # ---------------------------------------------------------------------------
-# 11. Workspace — default mount point for repos
+# 12. Workspace — default mount point for repos
 # ---------------------------------------------------------------------------
 WORKDIR /workspace
 
