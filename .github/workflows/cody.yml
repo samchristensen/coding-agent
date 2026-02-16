@@ -1,0 +1,122 @@
+# =============================================================================
+# Cody Agent — reusable workflow for autonomous coding
+# =============================================================================
+# Called by other repos to run Cody against a GitHub issue.
+# Cody clones the repo, reads the issue, implements changes, and opens a PR.
+#
+# Usage in a caller repo:
+#
+#   name: Cody Agent
+#   on:
+#     workflow_dispatch:
+#       inputs:
+#         issue_url:
+#           description: "GitHub issue URL"
+#           required: true
+#           type: string
+#   run-name: "Cody: ${{ inputs.issue_url }}"
+#   jobs:
+#     cody:
+#       uses: samchristensen/coding-agent/.github/workflows/cody.yml@main
+#       with:
+#         issue_url: ${{ inputs.issue_url }}
+#       secrets:
+#         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+#
+# =============================================================================
+
+name: Cody Agent
+
+on:
+  workflow_call:
+    inputs:
+      issue_url:
+        description: "GitHub issue URL (e.g. https://github.com/owner/repo/issues/42)"
+        required: true
+        type: string
+      task_instructions:
+        description: "Optional repo-specific task instructions appended to the prompt"
+        required: false
+        type: string
+        default: ""
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: true
+      CONTEXT7_API_KEY:
+        required: false
+
+jobs:
+  run-cody:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      packages: read
+
+    steps:
+      - name: Login to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Extract issue info
+        id: issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_URL="${{ inputs.issue_url }}"
+          ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -oP '\d+$')
+          echo "number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
+
+          ISSUE_JSON=$(gh api repos/${{ github.repository }}/issues/$ISSUE_NUMBER)
+          TITLE=$(echo "$ISSUE_JSON" | jq -r '.title')
+          BODY=$(echo "$ISSUE_JSON" | jq -r '.body // "No description provided."')
+
+          echo "title=$TITLE" >> "$GITHUB_OUTPUT"
+          echo "branch=cody/issue-$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
+
+          # Build task prompt — write to file to avoid shell escaping issues
+          cat > /tmp/task.txt <<PROMPT
+          You are working on GitHub issue #${ISSUE_NUMBER}: "${TITLE}"
+
+          Issue description:
+          ${BODY}
+
+          Instructions:
+          1. Read and understand the issue thoroughly.
+          2. Explore the codebase to understand the relevant code.
+          3. Implement the changes needed to resolve this issue.
+          4. Commit your changes with a descriptive commit message referencing #${ISSUE_NUMBER}.
+          5. Push your branch and open a pull request that references this issue.
+          PROMPT
+
+          # Append repo-specific instructions if provided
+          EXTRA="${{ inputs.task_instructions }}"
+          if [[ -n "$EXTRA" ]]; then
+            echo "" >> /tmp/task.txt
+            echo "$EXTRA" >> /tmp/task.txt
+          fi
+
+          # Always end with PR instructions
+          cat >> /tmp/task.txt <<PROMPT
+
+          Use the gh CLI to create the PR. The PR title should be descriptive of the change, and the body should explain what was changed and why. Include "Closes #${ISSUE_NUMBER}" in the PR body.
+          PROMPT
+
+      - name: Run Cody agent
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TASK=$(cat /tmp/task.txt)
+
+          docker run --rm \
+            -e REPO="${{ github.repository }}" \
+            -e TASK="$TASK" \
+            -e BRANCH="${{ steps.issue.outputs.branch }}" \
+            -e ANTHROPIC_API_KEY \
+            -e CONTEXT7_API_KEY \
+            -e GH_TOKEN \
+            ghcr.io/samchristensen/cody:latest
